@@ -1,8 +1,10 @@
+pub mod errors;
 pub mod processor;
 pub mod state;
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Transfer};
+use errors::CourtError;
 use processor::*;
 
 declare_id!("8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1");
@@ -10,25 +12,25 @@ declare_id!("8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1");
 #[program]
 pub mod dispute_resolution {
     use super::*;
-
+    // TODO currently we don't support automation of transferring assets which there's claim
     pub fn raise_dispute(
         ctx: Context<RaiseDispute>,
         dispute_data: crate::state::Dispute,
     ) -> Result<()> {
         // TODO do not take the Dispute object because it's heavy! we should use an alternative sol'n as we have many NULL values!
         if dispute_data.applicants[0].address != ctx.accounts.payer.to_account_info().key() {
+            // First one should be the payer
             // Raise an error
         }
 
         let mut total_share = 0;
         for applicant in dispute_data.applicants {
-            // TODO remove first one and use the payer instead
             total_share += applicant.share;
             ctx.accounts.dispute.applicants.push(state::Party {
                 address: applicant.address,
                 joined: false,
                 share: applicant.share,
-                uri: String::from(""),
+                evidence_uri: applicant.evidence_uri,
                 fingerprint: [0; 32],
             });
         }
@@ -44,7 +46,7 @@ pub mod dispute_resolution {
                 address: respondent.address,
                 joined: false,
                 share: respondent.share,
-                uri: String::from(""),
+                evidence_uri: respondent.evidence_uri,
                 fingerprint: [0; 32],
             });
         }
@@ -64,5 +66,27 @@ pub mod dispute_resolution {
             state::RAISE_DISPUTE_FEE,
         )?;
         Ok(())
+    }
+
+    pub fn join_party(ctx: Context<JoinParty>, evidence_uri: String) -> Result<()> {
+        let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
+        for applicant in &mut dispute.applicants {
+            // TODO do we need to check for percent of shares?
+            if (*applicant).address == ctx.accounts.payer.to_account_info().key() {
+                (*applicant).joined = true;
+                (*applicant).evidence_uri = evidence_uri.clone();
+                return Ok(());
+            }
+        }
+        for respondent in &mut dispute.respondents {
+            // TODO do we need to check for percent of shares?
+            if (*respondent).address == ctx.accounts.payer.to_account_info().key() {
+                (*respondent).joined = true;
+                (*respondent).evidence_uri = evidence_uri.clone();
+                return Ok(());
+            }
+        }
+
+        return Err(error!(CourtError::NoJoinAuthorize));
     }
 }

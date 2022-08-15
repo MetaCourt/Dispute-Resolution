@@ -29,8 +29,8 @@ pub struct Party {
     pub address: Pubkey,
     pub joined: bool,
     pub share: u8, // In percentage
-    pub uri: String,
-    pub fingerprint: [u8; 32],
+    pub evidence_uri: String,
+    pub fingerprint: [u8; 32], // hash of the evidence
 }
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
