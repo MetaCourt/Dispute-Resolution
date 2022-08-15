@@ -1,4 +1,10 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::pubkey;
+
+pub const COURT_TOKEN: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
+pub const COURT_TREASURY_TOKEN_ACCOUNT: Pubkey =
+    pubkey!("7ts4zibEhu1rL6CBXyGopZ7PFRLL8gPFKkdBQNAQCM6W");
+pub const RAISE_DISPUTE_FEE: u64 = 1; // TODO fee to create dispute
 
 pub const DISPUTE_SIZE: usize = 32 + // maker
 1; // dispute status
