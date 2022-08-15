@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey;
 
 pub const COURT_TOKEN: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
+pub const ADMIN: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
 pub const COURT_TREASURY_TOKEN_ACCOUNT: Pubkey =
     pubkey!("7ts4zibEhu1rL6CBXyGopZ7PFRLL8gPFKkdBQNAQCM6W");
 pub const RAISE_DISPUTE_FEE: u64 = 1; // TODO fee to create dispute
@@ -19,6 +20,8 @@ pub const MAX_URI_LENGTH: usize = 200;
 #[account]
 #[derive(Default)]
 pub struct Dispute {
+    pub dispute_value: u64,
+    pub dispute_closure_timestamp: i64,
     pub status: DisputeStatus,
     pub applicants: Vec<Party>,
     pub respondents: Vec<Party>,
@@ -36,7 +39,7 @@ pub struct Party {
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
 pub enum DisputeStatus {
     Initialized,
-    Accepted,
+    Approved,
     ExtraTime,
     Finished,
 }

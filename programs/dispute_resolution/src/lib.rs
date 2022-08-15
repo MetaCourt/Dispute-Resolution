@@ -23,6 +23,12 @@ pub mod dispute_resolution {
             // Raise an error
         }
 
+        let clock: Clock = Clock::get().unwrap();
+        if clock.unix_timestamp >= dispute_data.dispute_closure_timestamp {
+            // Raise an error
+            // TODO how should timings evaluated?
+        }
+
         let mut total_share = 0;
         for applicant in dispute_data.applicants {
             total_share += applicant.share;
@@ -88,5 +94,11 @@ pub mod dispute_resolution {
         }
 
         return Err(error!(CourtError::NoJoinAuthorize));
+    }
+
+    pub fn approve_dispute(ctx: Context<ApproveDispute>, dispute_value: u64) -> Result<()> {
+        ctx.accounts.dispute.status = state::DisputeStatus::Approved;
+        ctx.accounts.dispute.dispute_value = dispute_value;
+        Ok(())
     }
 }
