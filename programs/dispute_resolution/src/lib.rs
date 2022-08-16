@@ -5,6 +5,7 @@ pub mod state;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Transfer};
 use errors::CourtError;
+use metaplex_token_metadata::state::Metadata;
 use processor::*;
 
 declare_id!("8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1");
@@ -19,14 +20,14 @@ pub mod dispute_resolution {
     ) -> Result<()> {
         // TODO do not take the Dispute object because it's heavy! we should use an alternative sol'n as we have many NULL values!
         if dispute_data.applicants[0].address != ctx.accounts.payer.to_account_info().key() {
-            // First one should be the payer
-            // Raise an error
+            return Err(CourtError::PayerNotMatchFirstApplicantParty.into());
         }
 
         let clock: Clock = Clock::get().unwrap();
         if clock.unix_timestamp >= dispute_data.dispute_closure_timestamp {
             // Raise an error
             // TODO how should timings evaluated?
+            // TODO how should timings be? store starting time?
         }
 
         let mut total_share = 0;
@@ -41,7 +42,7 @@ pub mod dispute_resolution {
             });
         }
         if total_share != 100 {
-            // Raise an error
+            return Err(CourtError::SharesExceeded.into());
         }
         ctx.accounts.dispute.applicants[0].joined = true;
 
@@ -57,8 +58,10 @@ pub mod dispute_resolution {
             });
         }
         if total_share != 100 {
-            // Raise an error
+            return Err(CourtError::SharesExceeded.into());
         }
+        ctx.accounts.dispute.dispute_closure_timestamp = dispute_data.dispute_closure_timestamp;
+        ctx.accounts.dispute.ready_jurors = 1;
 
         token::transfer(
             CpiContext::new(
@@ -93,12 +96,56 @@ pub mod dispute_resolution {
             }
         }
 
-        return Err(error!(CourtError::NoJoinAuthorize));
+        return Err(CourtError::NoJoinAuthorize.into());
     }
 
-    pub fn approve_dispute(ctx: Context<ApproveDispute>, dispute_value: u64) -> Result<()> {
+    pub fn approve_dispute(
+        ctx: Context<ApproveDispute>,
+        dispute_value: u64,
+        required_stake_amount: u64,
+    ) -> Result<()> {
         ctx.accounts.dispute.status = state::DisputeStatus::Approved;
         ctx.accounts.dispute.dispute_value = dispute_value;
+        ctx.accounts.dispute.required_stake_amount = required_stake_amount;
+        Ok(())
+    }
+
+    pub fn join_juror(ctx: Context<JoinJuror>) -> Result<()> {
+        // Check if NFT metadata is initialized (since we are using AccountInfo)
+        if ctx.accounts.juror_nft_metadata_account.data_is_empty() {
+            return Err(CourtError::MetadataNotInitialized.into());
+        }
+        // Check if NFT Master Edition is initialized (since we are using AccountInfo)
+        if ctx.accounts.juror_nft_metadata_account.data_is_empty() {
+            return Err(CourtError::MasterEditionNotInitialized.into());
+        }
+        // TODO time must be valid
+
+        // Check if juror NFT is created by MetaCourt authorized creator
+        let metadata = &mut Metadata::from_account_info(&ctx.accounts.juror_nft_metadata_account)?;
+        if metadata.data.creators.as_ref().unwrap()[0].address != state::JUROR_CREATOR
+            || !(metadata.data.creators.as_ref().unwrap()[0].verified)
+        {
+            return Err(CourtError::NFTNotValid.into());
+        }
+
+        // Stake juror's COURT tokens into MetaCourt treasury
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.juror_token_account.to_account_info(),
+                    to: ctx.accounts.court_treasury_token_account.to_account_info(),
+                    authority: ctx.accounts.juror.to_account_info(),
+                },
+            ),
+            ctx.accounts.dispute.required_stake_amount,
+        )?;
+
+        // Add juror to the list of ready jurors
+        ctx.accounts.juror_reservation_entry.address = ctx.accounts.juror.to_account_info().key();
+        ctx.accounts.dispute.ready_jurors += 1;
+
         Ok(())
     }
 }
