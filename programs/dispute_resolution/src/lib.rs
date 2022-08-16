@@ -12,6 +12,7 @@ declare_id!("8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1");
 
 #[program]
 pub mod dispute_resolution {
+    // TODO apply timing checks to see if any of functions should be discarded
     use super::*;
     // TODO currently we don't support automation of transferring assets which there's claim
     pub fn raise_dispute(
@@ -151,6 +152,7 @@ pub mod dispute_resolution {
 
     pub fn draw_jurors(ctx: Context<DrawJurors>, jurors: Vec<crate::state::Juror>) -> Result<()> {
         // TODO determine number of jurors
+        // TODO can we check if jurors have been declared as ready
         if jurors.len() == 7 {
             return Err(CourtError::JurorNumbersNotCorrect.into());
         }
@@ -164,6 +166,30 @@ pub mod dispute_resolution {
         }
         // Change status to started so that remaining jurors can claim their stake
         dispute.status = state::DisputeStatus::Started;
+
+        Ok(())
+    }
+
+    pub fn cast_vote(
+        ctx: Context<CastVote>,
+        _juror_id: u16,
+        juror_opinion: crate::state::JurorOpinion,
+    ) -> Result<()> {
+        // TODO do timing checks
+
+        if ctx.accounts.juror_reservation_entry.address
+            != ctx.accounts.payer.to_account_info().key()
+        {
+            return Err(CourtError::JurorNotMatchedSigner.into());
+        }
+
+        let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
+        for juror in &mut dispute.jurors {
+            if juror.address == ctx.accounts.payer.to_account_info().key() {
+                juror.opinion = juror_opinion.clone();
+                // We don't break here to support weighted votes!
+            }
+        }
 
         Ok(())
     }

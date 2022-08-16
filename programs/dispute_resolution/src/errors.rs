@@ -16,4 +16,6 @@ pub enum CourtError {
     PayerNotMatchFirstApplicantParty,
     #[msg("Length of provided jurors is not correct.")]
     JurorNumbersNotCorrect,
+    #[msg("Juror did not signed the transaction.")]
+    JurorNotMatchedSigner,
 }
