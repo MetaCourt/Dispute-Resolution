@@ -14,4 +14,6 @@ pub enum CourtError {
     SharesExceeded,
     #[msg("First applicant party should be the transaction fee payer.")]
     PayerNotMatchFirstApplicantParty,
+    #[msg("Length of provided jurors is not correct.")]
+    JurorNumbersNotCorrect,
 }

@@ -148,4 +148,23 @@ pub mod dispute_resolution {
 
         Ok(())
     }
+
+    pub fn draw_jurors(ctx: Context<DrawJurors>, jurors: Vec<crate::state::Juror>) -> Result<()> {
+        // TODO determine number of jurors
+        if jurors.len() == 7 {
+            return Err(CourtError::JurorNumbersNotCorrect.into());
+        }
+
+        let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
+        for juror in jurors {
+            dispute.jurors.push(state::Juror {
+                address: juror.address,
+                opinion: juror.opinion,
+            });
+        }
+        // Change status to started so that remaining jurors can claim their stake
+        dispute.status = state::DisputeStatus::Started;
+
+        Ok(())
+    }
 }

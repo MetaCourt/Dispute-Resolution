@@ -21,6 +21,9 @@ pub const PARTY_SIZE: usize = 32 + // address
 4 + MAX_URI_LENGTH +
 32; // fingerprint hash
 
+pub const JUROR_SIZE: usize = 32 + // address
+1; // opinion
+
 pub const MAX_URI_LENGTH: usize = 200;
 
 pub const JUROR_RESERVATION_ENTRY_SIZE: usize = 32;
@@ -41,6 +44,13 @@ pub struct Dispute {
     pub status: DisputeStatus,
     pub applicants: Vec<Party>,
     pub respondents: Vec<Party>,
+    pub jurors: Vec<Juror>,
+}
+
+#[derive(Clone, Default, AnchorSerialize, AnchorDeserialize)]
+pub struct Juror {
+    pub address: Pubkey,
+    pub opinion: JurorOpinion,
 }
 
 #[derive(Clone, Default, AnchorSerialize, AnchorDeserialize)]
@@ -56,6 +66,7 @@ pub struct Party {
 pub enum DisputeStatus {
     Initialized,
     Approved,
+    Started,
     ExtraTime,
     Finished,
 }
@@ -63,5 +74,18 @@ pub enum DisputeStatus {
 impl Default for DisputeStatus {
     fn default() -> Self {
         DisputeStatus::Initialized
+    }
+}
+
+#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
+pub enum JurorOpinion {
+    Applicant,
+    Respondent,
+    None,
+}
+
+impl Default for JurorOpinion {
+    fn default() -> Self {
+        JurorOpinion::None
     }
 }

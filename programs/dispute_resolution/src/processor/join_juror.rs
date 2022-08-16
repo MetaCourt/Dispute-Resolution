@@ -1,6 +1,6 @@
 use crate::state;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, TokenAccount};
+use anchor_spl::token::{ Mint, TokenAccount };
 
 #[derive(Accounts)]
 #[instruction(dispute_data: state::Dispute)]
