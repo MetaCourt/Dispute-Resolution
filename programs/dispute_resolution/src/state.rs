@@ -9,49 +9,52 @@ pub const COURT_TREASURY_TOKEN_ACCOUNT: Pubkey =
     pubkey!("7ts4zibEhu1rL6CBXyGopZ7PFRLL8gPFKkdBQNAQCM6W");
 pub const RAISE_DISPUTE_FEE: u64 = 1; // TODO fee to create dispute
 
-pub const DISPUTE_SIZE: usize = 32 + // maker
-8 + // dispute value
-8 + // required stake amount
-8 + // dispute closure timestamp
-2 + // dispute ready jurors
-1; // dispute status
-pub const PARTY_SIZE: usize = 32 + // address
-1 + // joined
-1 + // share (percent)
-4 + MAX_URI_LENGTH +
-32; // fingerprint hash
-
-pub const JUROR_SIZE: usize = 32 + // address
-1; // opinion
-
 pub const MAX_URI_LENGTH: usize = 200;
 
-pub const JUROR_RESERVATION_ENTRY_SIZE: usize = 32;
-
-#[account]
-#[derive(Default)]
-pub struct JurorReservationEntry {
-    pub address: Pubkey,
-}
+pub const DISPUTE_SIZE: usize = 8 + // dispute value
+8 + // required stake amount
+8 + // init timestamp
+8 + // join juror deadline timestamp
+8 + // draw juror deadline timestamp
+8 + // closure deadline timestamp
+2 + // dispute ready jurors
+1 + // dispute status
+4 + // applicants Vec prefix (parties will be added at runtime)
+4 + // respondents Vec prefix (parties will be added at runtime)
+(7 * JUROR_SIZE); // jurors
 
 #[account]
 #[derive(Default)]
 pub struct Dispute {
     pub dispute_value: u64,
     pub required_stake_amount: u64,
-    pub dispute_closure_timestamp: i64,
+    pub init_time: i64,
+    pub join_juror_deadline: i64,
+    pub draw_juror_deadline: i64,
+    pub closure_deadline: i64,
     pub ready_jurors: u16,
     pub status: DisputeStatus,
     pub applicants: Vec<Party>,
     pub respondents: Vec<Party>,
-    pub jurors: Vec<Juror>,
+    pub jurors: [Juror; 7],
 }
 
-#[derive(Clone, Default, AnchorSerialize, AnchorDeserialize)]
+pub const JUROR_SIZE: usize = 32 + // address
+1 + // opinion
+1; // claimed reward
+
+#[derive(Copy, Clone, Default, AnchorSerialize, AnchorDeserialize)]
 pub struct Juror {
     pub address: Pubkey,
     pub opinion: JurorOpinion,
+    pub claimed_reward: bool,
 }
+
+pub const PARTY_SIZE: usize = 32 + // address
+1 + // joined
+1 + // share (percent)
+4 + MAX_URI_LENGTH +
+32; // fingerprint hash
 
 #[derive(Clone, Default, AnchorSerialize, AnchorDeserialize)]
 pub struct Party {
@@ -62,13 +65,19 @@ pub struct Party {
     pub fingerprint: [u8; 32], // hash of the evidence
 }
 
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
+pub const JUROR_RESERVATION_ENTRY_SIZE: usize = 32;
+
+#[account]
+#[derive(Default)]
+pub struct JurorReservationEntry {
+    pub address: Pubkey,
+}
+
+#[derive(Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]
 pub enum DisputeStatus {
     Initialized,
     Approved,
     Started,
-    ExtraTime,
-    Finished,
 }
 
 impl Default for DisputeStatus {
@@ -77,7 +86,7 @@ impl Default for DisputeStatus {
     }
 }
 
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
+#[derive(Copy, Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]
 pub enum JurorOpinion {
     Applicant,
     Respondent,
