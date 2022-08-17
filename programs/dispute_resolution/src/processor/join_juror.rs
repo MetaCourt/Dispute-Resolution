@@ -1,6 +1,6 @@
 use crate::state;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{ Mint, TokenAccount };
+use anchor_spl::token::{Mint, TokenAccount};
 
 #[derive(Accounts)]
 #[instruction(dispute_data: state::Dispute)]
@@ -9,13 +9,13 @@ pub struct JoinJuror<'info> {
         init,
         payer = juror,
         seeds = [
-            b"juror", 
+            state::JUROR_PDA, 
             dispute.to_account_info().key().as_ref(), 
             dispute.ready_jurors.to_string().as_ref()
         ],
         bump,
         space = state::JUROR_RESERVATION_ENTRY_SIZE
-    )]
+    )] // TODO is it possible to init the account but there is no other instructions in tx? (e.g. our program's instruction)
     pub juror_reservation_entry: Box<Account<'info, state::JurorReservationEntry>>,
     #[account(mut)]
     pub dispute: Box<Account<'info, state::Dispute>>,
@@ -34,7 +34,7 @@ pub struct JoinJuror<'info> {
     /// CHECK: Metadata account of NFT, address checked, initialization checked in function
     #[account(
         seeds = [
-            b"metadata", 
+            state::METADATA_PDA, 
             token_metadata_program.key().as_ref(),
             juror_nft_mint.key().as_ref(),            
         ],
@@ -45,10 +45,10 @@ pub struct JoinJuror<'info> {
     /// CHECK: Master Edition account of NFT, address checked, initialization checked in function
     #[account(
         seeds = [
-            b"metadata",
+            state::METADATA_PDA,
             token_metadata_program.key().as_ref(),
             juror_nft_mint.key().as_ref(),
-            b"edition"
+            state::EDITION_PDA
         ],
         bump,
         seeds::program = token_metadata_program.key()
@@ -62,9 +62,16 @@ pub struct JoinJuror<'info> {
         constraint = juror_token_account.owner == juror.to_account_info().key()
     )]
     pub juror_token_account: Account<'info, TokenAccount>,
-    #[account(address = state::COURT_TREASURY_TOKEN_ACCOUNT)]
+    #[account(
+        seeds = [
+            state::SETTINGS_PDA
+        ],
+        bump,
+    )]
+    pub settings: Box<Account<'info, state::Settings>>,
+    #[account(mut, address = settings.court_treasury_token_account)]
     pub court_treasury_token_account: Account<'info, TokenAccount>,
-    #[account(address = state::COURT_TOKEN)]
+    #[account(address = settings.court_token)]
     pub mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, anchor_spl::token::Token>,

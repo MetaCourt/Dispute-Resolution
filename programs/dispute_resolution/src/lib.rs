@@ -3,7 +3,7 @@ pub mod processor;
 pub mod state;
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Transfer};
+use anchor_spl::token::{self, spl_token::instruction::AuthorityType, SetAuthority, Transfer};
 use errors::CourtError;
 use metaplex_token_metadata::state::Metadata;
 use processor::*;
@@ -12,10 +12,69 @@ declare_id!("8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1");
 
 #[program]
 pub mod dispute_resolution {
+    // TODO security: check for other instructions in this tx
     // TODO check mutation of disputes in ctx
     use super::*;
-    const TREASURY_AUTHORITY_PDA_SEED: &[u8] = b"treasury_authority"; // TODO initialize treasury account
-                                                                      // TODO currently we don't support automation of transferring assets which there's claim
+    // TODO initialize treasury account
+    // TODO currently we don't support automation of transferring assets which there's claim
+    pub fn initialize_settings(
+        ctx: Context<InitializeSettings>,
+        admin: Pubkey,
+        juror_creator: Pubkey,
+        raise_dispute_fee: u64,
+    ) -> Result<()> {
+        // Check if settings had been created
+        if ctx.accounts.settings.master_admin != System::id() {
+            // TODO check for default value of master admin
+            return Err(CourtError::SettingsAlreadyCreated.into());
+        }
+
+        // Create treasury authority for court treasury token account
+        let (treasury_authority, _treasury_authority_bump) = Pubkey::find_program_address(
+            &[state::COURT_TREASURY_AUTHORITY_PDA_SEED],
+            ctx.program_id,
+        );
+        token::set_authority(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                SetAuthority {
+                    account_or_mint: ctx
+                        .accounts
+                        .court_treasury_token_account
+                        .to_account_info()
+                        .clone(),
+                    current_authority: ctx.accounts.admin.to_account_info().clone(),
+                },
+            ),
+            AuthorityType::AccountOwner,
+            Some(treasury_authority),
+        )?;
+
+        // Set the settings
+        ctx.accounts.settings.master_admin = ctx.accounts.admin.to_account_info().key();
+        ctx.accounts.settings.admin = admin;
+        ctx.accounts.settings.court_token = ctx.accounts.mint.to_account_info().key();
+        ctx.accounts.settings.juror_creator = juror_creator;
+        ctx.accounts.settings.court_treasury_token_account = ctx
+            .accounts
+            .court_treasury_token_account
+            .to_account_info()
+            .key();
+        ctx.accounts.settings.raise_dispute_fee = raise_dispute_fee;
+
+        Ok(())
+    }
+
+    pub fn set_settings(ctx: Context<SetSettings>, settings: crate::state::Settings) -> Result<()> {
+        // Set the settings
+        ctx.accounts.settings.master_admin = settings.master_admin;
+        ctx.accounts.settings.admin = settings.admin;
+        ctx.accounts.settings.juror_creator = settings.juror_creator;
+        ctx.accounts.settings.raise_dispute_fee = settings.raise_dispute_fee;
+
+        Ok(())
+    }
+
     pub fn raise_dispute(
         ctx: Context<RaiseDispute>,
         dispute_data: crate::state::Dispute,
@@ -80,7 +139,7 @@ pub mod dispute_resolution {
                     authority: ctx.accounts.payer.to_account_info(),
                 },
             ),
-            state::RAISE_DISPUTE_FEE,
+            ctx.accounts.settings.raise_dispute_fee,
         )?;
         Ok(())
     }
@@ -155,7 +214,8 @@ pub mod dispute_resolution {
 
         // Check if juror NFT is created by MetaCourt authorized creator
         let metadata = &mut Metadata::from_account_info(&ctx.accounts.juror_nft_metadata_account)?;
-        if metadata.data.creators.as_ref().unwrap()[0].address != state::JUROR_CREATOR
+        if metadata.data.creators.as_ref().unwrap()[0].address
+            != ctx.accounts.settings.juror_creator
             || !(metadata.data.creators.as_ref().unwrap()[0].verified)
         {
             return Err(CourtError::NFTNotValid.into());
@@ -303,11 +363,15 @@ pub mod dispute_resolution {
         }
 
         // Send tokens into Juror's COURT token account
-        let (_treasury_authority, treasury_authority_bump) =
-            Pubkey::find_program_address(&[TREASURY_AUTHORITY_PDA_SEED], ctx.program_id);
+        let (_treasury_authority, treasury_authority_bump) = Pubkey::find_program_address(
+            &[state::COURT_TREASURY_AUTHORITY_PDA_SEED],
+            ctx.program_id,
+        );
 
-        let treasury_authority_seeds =
-            &[&TREASURY_AUTHORITY_PDA_SEED[..], &[treasury_authority_bump]];
+        let treasury_authority_seeds = &[
+            &state::COURT_TREASURY_AUTHORITY_PDA_SEED[..],
+            &[treasury_authority_bump],
+        ];
 
         token::transfer(
             CpiContext::new_with_signer(

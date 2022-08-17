@@ -1,15 +1,34 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey;
 
-pub const COURT_TOKEN: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
 pub const METADATA_PROGRAM_ID: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
-pub const JUROR_CREATOR: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
-pub const ADMIN: Pubkey = pubkey!("CotjBMa7GVLUP6ajjDbCxoNZBAu9zfkLZzcU5wCLC2Hx");
-pub const COURT_TREASURY_TOKEN_ACCOUNT: Pubkey =
-    pubkey!("7ts4zibEhu1rL6CBXyGopZ7PFRLL8gPFKkdBQNAQCM6W");
-pub const RAISE_DISPUTE_FEE: u64 = 1; // TODO fee to create dispute
+
+pub const SETTINGS_PDA: &[u8] = b"settings";
+pub const COURT_TREASURY_PDA: &[u8] = b"court_treasury_token_account";
+pub const COURT_TREASURY_AUTHORITY_PDA_SEED: &[u8] = b"court_treasury_token_account_authority";
+pub const JUROR_PDA: &[u8] = b"juror";
+pub const METADATA_PDA: &[u8] = b"metadata";
+pub const EDITION_PDA: &[u8] = b"edition";
 
 pub const MAX_URI_LENGTH: usize = 200;
+
+pub const SETTINGS_SIZE: usize = 32 + // master admin
+32 + // admin
+32 + // court token
+32 + // juror NFT creator
+32 + // MetaCourt treasury token account
+8; // dispute raising fee
+
+#[account]
+#[derive(Default)]
+pub struct Settings {
+    pub master_admin: Pubkey,
+    pub admin: Pubkey,
+    pub court_token: Pubkey,
+    pub juror_creator: Pubkey,
+    pub court_treasury_token_account: Pubkey,
+    pub raise_dispute_fee: u64, // TODO how to get additional fee for the reward?
+}
 
 pub const DISPUTE_SIZE: usize = 8 + // dispute value
 8 + // required stake amount

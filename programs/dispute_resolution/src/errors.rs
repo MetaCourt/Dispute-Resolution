@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum CourtError {
+    #[msg("Settings have been already created.")]
+    SettingsAlreadyCreated,
     #[msg("You are not authorize to join this dispute.")]
     NoJoinAuthorize,
     #[msg("Metadata of the juror NFT is not initialized.")]

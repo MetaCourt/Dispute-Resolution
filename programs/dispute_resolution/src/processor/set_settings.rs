@@ -1,12 +1,9 @@
 use crate::state;
 use anchor_lang::prelude::*;
+use anchor_spl::token::{Mint, TokenAccount};
 
 #[derive(Accounts)]
-pub struct ApproveDispute<'info> {
-    #[account(mut)]
-    pub dispute: Account<'info, state::Dispute>,
-    #[account(mut, address = settings.admin)]
-    pub payer: Signer<'info>,
+pub struct SetSettings<'info> {
     #[account(
         seeds = [
             state::SETTINGS_PDA
@@ -14,4 +11,6 @@ pub struct ApproveDispute<'info> {
         bump,
     )]
     pub settings: Account<'info, state::Settings>,
+    #[account(mut, address = settings.master_admin)]
+    pub master_admin: Signer<'info>,
 }

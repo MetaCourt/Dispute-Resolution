@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 pub struct CastVote<'info> {
     #[account(
         seeds = [
-            b"juror",
+            state::JUROR_PDA,
             dispute.to_account_info().key().as_ref(),
             juror_id.to_string().as_ref()
         ],

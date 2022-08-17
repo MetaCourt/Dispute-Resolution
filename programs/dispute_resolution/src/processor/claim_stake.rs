@@ -7,7 +7,7 @@ use anchor_spl::token::{Mint, TokenAccount};
 pub struct ClaimStake<'info> {
     #[account(
         seeds = [
-            b"juror",
+            state::JUROR_PDA,
             dispute.to_account_info().key().as_ref(),
             juror_id.to_string().as_ref()
         ],
@@ -26,11 +26,18 @@ pub struct ClaimStake<'info> {
         constraint = juror_token_account.owner == juror.to_account_info().key()
     )]
     pub juror_token_account: Account<'info, TokenAccount>,
-    #[account(address = state::COURT_TREASURY_TOKEN_ACCOUNT)]
+    #[account(
+        seeds = [
+            state::SETTINGS_PDA
+        ],
+        bump,
+    )]
+    pub settings: Box<Account<'info, state::Settings>>,
+    #[account(mut)]
     pub court_treasury_token_account: Account<'info, TokenAccount>,
     /// CHECK: This is not dangerous because checks will be performed in token program when transferring tokens
     pub treasury_authority: AccountInfo<'info>,
-    #[account(address = state::COURT_TOKEN)]
+    #[account(address = settings.court_token)]
     pub mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, anchor_spl::token::Token>,
