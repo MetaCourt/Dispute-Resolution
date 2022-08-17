@@ -1,6 +1,5 @@
 use crate::state;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, TokenAccount};
 
 #[derive(Accounts)]
 pub struct SetSettings<'info> {
