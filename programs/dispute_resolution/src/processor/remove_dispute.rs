@@ -2,15 +2,16 @@ use crate::state;
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
-pub struct SetSettings<'info> {
+pub struct RemoveDispute<'info> {
+    #[account(mut, close = payer)]
+    pub dispute: Account<'info, state::Dispute>,
+    #[account(mut, address = settings.admin)]
+    pub payer: Signer<'info>,
     #[account(
-        mut,
         seeds = [
             state::SETTINGS_PDA
         ],
         bump,
     )]
     pub settings: Account<'info, state::Settings>,
-    #[account(mut, address = settings.master_admin)]
-    pub master_admin: Signer<'info>,
 }

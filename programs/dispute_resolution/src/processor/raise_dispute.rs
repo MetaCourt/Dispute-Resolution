@@ -3,12 +3,13 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{ Mint, TokenAccount };
 
 #[derive(Accounts)]
-#[instruction(dispute_data: state::Dispute)]
+#[instruction(dispute_data: state::DisputeType)]
 pub struct RaiseDispute<'info> {
     #[account(
         init,
         payer = payer, 
-        space = state::DISPUTE_SIZE + ((dispute_data.applicants.len() + dispute_data.respondents.len()) * state::PARTY_SIZE))]
+        space = state::DISPUTE_SIZE + ((dispute_data.applicants.len() + dispute_data.respondents.len()) * state::PARTY_SIZE)
+    )]
     pub dispute: Box<Account<'info, state::Dispute>>,
     #[account(mut)]
     pub payer: Signer<'info>,

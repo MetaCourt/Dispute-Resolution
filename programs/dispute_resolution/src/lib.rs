@@ -2,6 +2,7 @@ pub mod errors;
 pub mod processor;
 pub mod state;
 
+use crate::state::{DisputeType, Juror, JurorOpinion, Settings};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, spl_token::instruction::AuthorityType, SetAuthority, Transfer};
 use errors::CourtError;
@@ -30,10 +31,11 @@ pub mod dispute_resolution {
         }
 
         // Create treasury authority for court treasury token account
-        let (treasury_authority, _treasury_authority_bump) = Pubkey::find_program_address(
+        let (treasury_authority, treasury_authority_bump) = Pubkey::find_program_address(
             &[state::COURT_TREASURY_AUTHORITY_PDA_SEED],
             ctx.program_id,
         );
+
         token::set_authority(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -61,11 +63,14 @@ pub mod dispute_resolution {
             .to_account_info()
             .key();
         ctx.accounts.settings.raise_dispute_fee = raise_dispute_fee;
+        ctx.accounts.settings.court_treasury_token_account_authority = treasury_authority;
+        ctx.accounts.settings.court_treasury_token_account_bump = treasury_authority_bump;
 
         Ok(())
     }
 
-    pub fn set_settings(ctx: Context<SetSettings>, settings: crate::state::Settings) -> Result<()> {
+    pub fn set_settings(ctx: Context<SetSettings>, settings: Settings) -> Result<()> {
+        // TODO if any field is null it will override settings
         // Set the settings
         ctx.accounts.settings.master_admin = settings.master_admin;
         ctx.accounts.settings.admin = settings.admin;
@@ -75,22 +80,20 @@ pub mod dispute_resolution {
         Ok(())
     }
 
-    pub fn raise_dispute(
-        ctx: Context<RaiseDispute>,
-        dispute_data: crate::state::Dispute,
-    ) -> Result<()> {
+    pub fn raise_dispute(ctx: Context<RaiseDispute>, dispute_data: DisputeType) -> Result<()> {
         // TODO do not take the Dispute object because it's heavy! we should use an alternative sol'n as we have many NULL values!
         if dispute_data.applicants[0].address != ctx.accounts.payer.to_account_info().key() {
             return Err(CourtError::PayerNotMatchFirstApplicantParty.into());
         }
-
+        // TODO timings are disabled for development
+        // TODO current time could be a couple of hours (1 day) delayed! so take that into account
         let clock: Clock = Clock::get().unwrap();
-        if !(clock.unix_timestamp <= dispute_data.join_juror_deadline
-            && dispute_data.join_juror_deadline <= dispute_data.draw_juror_deadline
-            && dispute_data.draw_juror_deadline <= dispute_data.closure_deadline)
-        {
-            return Err(CourtError::DisputeTimingsNotValid.into());
-        }
+        // if !(clock.unix_timestamp <= dispute_data.join_juror_deadline
+        //     && dispute_data.join_juror_deadline <= dispute_data.draw_juror_deadline
+        //     && dispute_data.draw_juror_deadline <= dispute_data.closure_deadline)
+        // {
+        //     return Err(CourtError::DisputeTimingsNotValid.into());
+        // }
 
         let mut total_share = 0;
         for applicant in dispute_data.applicants {
@@ -123,6 +126,8 @@ pub mod dispute_resolution {
             return Err(CourtError::SharesExceeded.into());
         }
 
+        ctx.accounts.dispute.dispute_value = dispute_data.dispute_value;
+        ctx.accounts.dispute.required_stake_amount = dispute_data.required_stake_amount;
         ctx.accounts.dispute.init_time = clock.unix_timestamp;
         ctx.accounts.dispute.join_juror_deadline = dispute_data.join_juror_deadline;
         ctx.accounts.dispute.draw_juror_deadline = dispute_data.draw_juror_deadline;
@@ -144,14 +149,17 @@ pub mod dispute_resolution {
         Ok(())
     }
 
-    pub fn join_party(ctx: Context<JoinParty>, evidence_uri: String) -> Result<()> {
-        let clock: Clock = Clock::get().unwrap();
-        // TODO add fingerprint of evidence
-        if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline
-            || ctx.accounts.dispute.status != state::DisputeStatus::Initialized
-        {
-            return Err(CourtError::JoinPartyDeadlineViolated.into());
-        }
+    pub fn join_party(
+        ctx: Context<JoinParty>,
+        evidence_uri: String,
+        fingerprint: [u8; 32],
+    ) -> Result<()> {
+        // let clock: Clock = Clock::get().unwrap();
+        // if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline
+        //     || ctx.accounts.dispute.status != state::DisputeStatus::Initialized
+        // {
+        //     return Err(CourtError::JoinPartyDeadlineViolated.into());
+        // }
 
         let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
         for applicant in &mut dispute.applicants {
@@ -159,6 +167,7 @@ pub mod dispute_resolution {
             if (*applicant).address == ctx.accounts.payer.to_account_info().key() {
                 (*applicant).joined = true;
                 (*applicant).evidence_uri = evidence_uri.clone();
+                (*applicant).fingerprint = fingerprint.clone();
                 return Ok(());
             }
         }
@@ -167,6 +176,7 @@ pub mod dispute_resolution {
             if (*respondent).address == ctx.accounts.payer.to_account_info().key() {
                 (*respondent).joined = true;
                 (*respondent).evidence_uri = evidence_uri.clone();
+                (*respondent).fingerprint = fingerprint.clone();
                 return Ok(());
             }
         }
@@ -179,14 +189,15 @@ pub mod dispute_resolution {
         dispute_value: u64,
         required_stake_amount: u64,
     ) -> Result<()> {
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline {
-            return Err(CourtError::ApproveMissedDeadlineDispute.into());
-        }
+        // Approve can be called even if all parties not joined (on some cases that they aren't available)
+        // let clock: Clock = Clock::get().unwrap();
+        // if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline {
+        //     return Err(CourtError::ApproveMissedDeadlineDispute.into());
+        // }
 
-        if ctx.accounts.dispute.status != state::DisputeStatus::Initialized {
-            return Err(CourtError::DisputeAlreadyApproved.into());
-        }
+        // if ctx.accounts.dispute.status != state::DisputeStatus::Initialized {
+        //     return Err(CourtError::DisputeAlreadyApproved.into());
+        // }
 
         ctx.accounts.dispute.status = state::DisputeStatus::Approved;
         ctx.accounts.dispute.dispute_value = dispute_value;
@@ -205,19 +216,25 @@ pub mod dispute_resolution {
             return Err(CourtError::MasterEditionNotInitialized.into());
         }
 
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline
-            || ctx.accounts.dispute.status != state::DisputeStatus::Approved
-        {
-            return Err(CourtError::JoinJurorDeadlineViolated.into());
-        }
+        // let clock: Clock = Clock::get().unwrap();
+        // if clock.unix_timestamp >= ctx.accounts.dispute.join_juror_deadline
+        //     || ctx.accounts.dispute.status != state::DisputeStatus::Approved
+        // {
+        //     return Err(CourtError::JoinJurorDeadlineViolated.into());
+        // }
 
         // Check if juror NFT is created by MetaCourt authorized creator
         let metadata = &mut Metadata::from_account_info(&ctx.accounts.juror_nft_metadata_account)?;
-        if metadata.data.creators.as_ref().unwrap()[0].address
-            != ctx.accounts.settings.juror_creator
-            || !(metadata.data.creators.as_ref().unwrap()[0].verified)
-        {
+
+        let mut valid_creator = false;
+        let nft_creators = metadata.data.creators.as_ref().unwrap();
+        for creator in nft_creators {
+            if (creator.address == ctx.accounts.settings.juror_creator) & creator.verified {
+                valid_creator = true;
+                break;
+            }
+        }
+        if !valid_creator {
             return Err(CourtError::NFTNotValid.into());
         }
 
@@ -241,25 +258,25 @@ pub mod dispute_resolution {
         Ok(())
     }
 
-    pub fn draw_jurors(ctx: Context<DrawJurors>, jurors: Vec<crate::state::Juror>) -> Result<()> {
+    pub fn draw_jurors(ctx: Context<DrawJurors>, jurors: Vec<Pubkey>) -> Result<()> {
         // TODO determine number of jurors
         // TODO can we check if jurors have been declared as ready
-        if jurors.len() == 7 {
-            return Err(CourtError::JurorNumbersNotCorrect.into());
-        }
+        // if jurors.len() == 7 {
+        //     return Err(CourtError::JurorNumbersNotCorrect.into());
+        // }
 
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp >= ctx.accounts.dispute.draw_juror_deadline
-            || clock.unix_timestamp <= ctx.accounts.dispute.join_juror_deadline
-            || ctx.accounts.dispute.status != state::DisputeStatus::Approved
-        {
-            return Err(CourtError::DrawJurorDeadlineViolated.into());
-        }
+        // let clock: Clock = Clock::get().unwrap();
+        // if clock.unix_timestamp >= ctx.accounts.dispute.draw_juror_deadline
+        //     || clock.unix_timestamp <= ctx.accounts.dispute.join_juror_deadline
+        //     || ctx.accounts.dispute.status != state::DisputeStatus::Approved
+        // {
+        //     return Err(CourtError::DrawJurorDeadlineViolated.into());
+        // }
 
         let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
         for i in 0..jurors.len() {
             dispute.jurors[i] = state::Juror {
-                address: jurors[i].address,
+                address: jurors[i],
                 opinion: state::JurorOpinion::None,
                 claimed_reward: false,
             };
@@ -273,21 +290,21 @@ pub mod dispute_resolution {
     pub fn cast_vote(
         ctx: Context<CastVote>,
         _juror_id: u16,
-        juror_opinion: crate::state::JurorOpinion,
+        juror_opinion: JurorOpinion,
     ) -> Result<()> {
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp >= ctx.accounts.dispute.closure_deadline
-            || ctx.accounts.dispute.status != state::DisputeStatus::Started
-        {
-            return Err(CourtError::VoteDeadlineViolated.into());
-        }
+        // let clock: Clock = Clock::get().unwrap();
+        // if clock.unix_timestamp >= ctx.accounts.dispute.closure_deadline
+        //     || ctx.accounts.dispute.status != state::DisputeStatus::Started
+        // {
+        //     return Err(CourtError::VoteDeadlineViolated.into());
+        // }
 
         if ctx.accounts.juror_reservation_entry.address
             != ctx.accounts.payer.to_account_info().key()
         {
             return Err(CourtError::JurorNotMatchedSigner.into());
         }
-
+        // TODO: check if anyone with desired juror entry can change the vote
         let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
         for juror in &mut dispute.jurors {
             if juror.address == ctx.accounts.payer.to_account_info().key() {
@@ -300,11 +317,11 @@ pub mod dispute_resolution {
     }
 
     pub fn claim_stake(ctx: Context<ClaimStake>, _juror_id: u16) -> Result<()> {
-        if ctx.accounts.juror_reservation_entry.address
-            != ctx.accounts.juror.to_account_info().key()
-        {
-            return Err(CourtError::JurorNotMatchedSigner.into());
-        }
+        // if ctx.accounts.juror_reservation_entry.address
+        //     != ctx.accounts.juror.to_account_info().key()
+        // {
+        //     return Err(CourtError::JurorNotMatchedSigner.into());
+        // }
 
         let clock: Clock = Clock::get().unwrap();
         let dispute_closure_deadline = ctx.accounts.dispute.closure_deadline.clone();
@@ -386,6 +403,14 @@ pub mod dispute_resolution {
             tokens_to_be_transferred,
         )?;
 
+        Ok(())
+    }
+
+    pub fn remove_dispute(_ctx: Context<RemoveDispute>) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn remove_juror_entry(_ctx: Context<RemoveJurorEntry>) -> Result<()> {
         Ok(())
     }
 }

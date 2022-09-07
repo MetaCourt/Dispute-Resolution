@@ -18,7 +18,7 @@ pub struct InitializeSettings<'info> {
         init,
         payer = admin,
         seeds = [
-            state::SETTINGS_PDA
+            state::COURT_TREASURY_PDA
         ],
         bump,
         token::mint = mint,

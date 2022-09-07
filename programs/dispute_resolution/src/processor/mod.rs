@@ -6,6 +6,8 @@ pub mod initialize_settings;
 pub mod join_juror;
 pub mod join_party;
 pub mod raise_dispute;
+pub mod remove_dispute;
+pub mod remove_juror_entry;
 pub mod set_settings;
 
 pub use approve_dispute::*;
@@ -16,4 +18,6 @@ pub use initialize_settings::*;
 pub use join_juror::*;
 pub use join_party::*;
 pub use raise_dispute::*;
+pub use remove_dispute::*;
+pub use remove_juror_entry::*;
 pub use set_settings::*;

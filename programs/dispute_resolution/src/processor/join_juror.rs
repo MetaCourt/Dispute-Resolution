@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, TokenAccount};
 
 #[derive(Accounts)]
-#[instruction(dispute_data: state::Dispute)]
 pub struct JoinJuror<'info> {
     #[account(
         init,

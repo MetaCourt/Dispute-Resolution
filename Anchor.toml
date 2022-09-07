@@ -7,7 +7,7 @@ dispute_resolution = "8rLpdGuKpqPRYF9odc1ken4AnxQfTF1tiXUTM2zJDXQ1"
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "/Users/hamed/.config/solana/id.json"
 
 [scripts]
