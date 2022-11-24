@@ -110,12 +110,14 @@ pub struct PartyType {
 }
 
 pub const JUROR_RESERVATION_ENTRY_SIZE: usize = 8 + // discriminator length
+32 +
 32;
 
 #[account]
 #[derive(Default)]
 pub struct JurorReservationEntry {
     pub address: Pubkey,
+    pub dispute: Pubkey,
 }
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]

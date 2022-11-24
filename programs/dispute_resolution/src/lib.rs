@@ -253,6 +253,7 @@ pub mod dispute_resolution {
 
         // Add juror to the list of ready jurors
         ctx.accounts.juror_reservation_entry.address = ctx.accounts.juror.to_account_info().key();
+        ctx.accounts.juror_reservation_entry.dispute = ctx.accounts.dispute.to_account_info().key();
         ctx.accounts.dispute.ready_jurors += 1;
 
         Ok(())
@@ -317,14 +318,16 @@ pub mod dispute_resolution {
     }
 
     pub fn claim_stake(ctx: Context<ClaimStake>, _juror_id: u16) -> Result<()> {
-        // if ctx.accounts.juror_reservation_entry.address
-        //     != ctx.accounts.juror.to_account_info().key()
-        // {
-        //     return Err(CourtError::JurorNotMatchedSigner.into());
-        // }
+        // TODO this function has potential for bugs, divide it to separate logic sections
+        if ctx.accounts.juror_reservation_entry.address
+            != ctx.accounts.juror.to_account_info().key()
+        {
+            return Err(CourtError::JurorNotMatchedSigner.into());
+        }
 
         let clock: Clock = Clock::get().unwrap();
         let dispute_closure_deadline = ctx.accounts.dispute.closure_deadline.clone();
+        let read_only_dispute = ctx.accounts.dispute.clone();
         let dispute: &mut Account<state::Dispute> = &mut ctx.accounts.dispute;
         let mut tokens_to_be_transferred: u64 = 0;
 
@@ -353,7 +356,7 @@ pub mod dispute_resolution {
                                 // Juror has already claimed the reward
                                 return Err(CourtError::JurorAlreadyClaimedReward.into());
                             } else {
-                                // TODO Calculate the reward
+                                tokens_to_be_transferred = read_only_dispute.required_stake_amount; // TODO Calculate the reward
                                 juror.claimed_reward = true;
                             }
                         } else {

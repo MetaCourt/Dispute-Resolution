@@ -341,23 +341,47 @@ describe("dispute_resolution", () => {
   it("Cast vote", async () => {
     let disputes = await program.account.dispute.all();
 
-    const [jurorReservationEntry, _jurorReservationEntryBump] =
-      await anchor.web3.PublicKey.findProgramAddress(
-        [
-          JUROR_PDA,
-          disputes[0].publicKey.toBuffer(),
-          Buffer.from(
-            anchor.utils.bytes.utf8.encode(
-              (disputes[0].account.readyJurors - 1).toString()
-            )
-          ),
-        ],
-        program.programId
-      );
+    let jurorReservationEntry = anchor.web3.PublicKey.default;
+    let jurorReservationEntryIndex = -1;
+    let jurorReservationEntries =
+      await program.account.jurorReservationEntry.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: wallet.publicKey.toBase58(),
+          },
+        },
+        {
+          memcmp: {
+            offset: 40,
+            bytes: disputes[0].publicKey.toBase58(),
+          },
+        },
+      ]);
 
-    const jurors = [TOKEN_PROGRAM_ID]; // TODO change
+    for (let i = 1; i < disputes[0].account.readyJurors; i++) {
+      const [entryAddress, _bump] =
+        await anchor.web3.PublicKey.findProgramAddress(
+          [
+            JUROR_PDA,
+            disputes[0].publicKey.toBuffer(),
+            Buffer.from(anchor.utils.bytes.utf8.encode(i.toString())),
+          ],
+          program.programId
+        );
+      if (
+        entryAddress.toString() ===
+        jurorReservationEntries[0].publicKey.toString()
+      ) {
+        jurorReservationEntry = entryAddress;
+        jurorReservationEntryIndex = i;
+        break;
+      }
+    }
 
-    const tx = program.methods.castVote(1, { respondent: {} });
+    const tx = program.methods.castVote(jurorReservationEntryIndex, {
+      respondent: {},
+    });
 
     tx.accounts({
       jurorReservationEntry,
@@ -367,7 +391,7 @@ describe("dispute_resolution", () => {
 
     await tx.rpc();
 
-    console.log("Your transaction signature", tx);
+    // console.log("Your transaction signature", tx);
   });
 
   it.only("Claim stake", async () => {
@@ -434,4 +458,60 @@ describe("dispute_resolution", () => {
 
     console.log("Your transaction signature", tx);
   });
+
+  // it("Remove all juror entries", async () => {
+  //   const [settings, _settingsBump] =
+  //     await anchor.web3.PublicKey.findProgramAddress(
+  //       [SETTINGS_PDA],
+  //       program.programId
+  //     );
+
+  //   let disputes = await program.account.dispute.all();
+  //   for (const dispute of disputes) {
+  //     for (let i = 1; i < dispute.account.readyJurors; i++) {
+  //       const [entryAddress, _bump] =
+  //         await anchor.web3.PublicKey.findProgramAddress(
+  //           [
+  //             JUROR_PDA,
+  //             dispute.publicKey.toBuffer(),
+  //             Buffer.from(anchor.utils.bytes.utf8.encode(i.toString())),
+  //           ],
+  //           program.programId
+  //         );
+  //       const tx = program.methods.removeJurorEntry();
+
+  //       tx.accounts({
+  //         jurorEntry: entryAddress,
+  //         payer: wallet.publicKey,
+  //         settings,
+  //       });
+
+  //       await tx.rpc();
+  //     }
+  //     console.log("Your transaction signature");
+  //   }
+  // });
+
+  // it("Remove all disputes", async () => {
+  //   const [settings, _settingsBump] =
+  //     await anchor.web3.PublicKey.findProgramAddress(
+  //       [SETTINGS_PDA],
+  //       program.programId
+  //     );
+
+  //   let disputes = await program.account.dispute.all();
+  //   for (const dispute of disputes) {
+  //     const tx = program.methods.removeDispute();
+
+  //     tx.accounts({
+  //       dispute: dispute.publicKey,
+  //       payer: wallet.publicKey,
+  //       settings,
+  //     });
+
+  //     await tx.rpc();
+
+  //     console.log("Your transaction signature");
+  //   }
+  // });
 });

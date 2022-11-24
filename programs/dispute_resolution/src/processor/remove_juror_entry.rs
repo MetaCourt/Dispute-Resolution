@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct RemoveJurorEntry<'info> {
     #[account(mut, close = payer)]
-    pub dispute: Account<'info, state::Dispute>,
+    pub juror_entry: Account<'info, state::JurorReservationEntry>,
     #[account(mut, address = settings.admin)]
     pub payer: Signer<'info>,
     #[account(
